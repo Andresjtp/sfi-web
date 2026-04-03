@@ -1,107 +1,178 @@
 /**
- * api.js — SFI Engine API client
+ * api.js  —  SFI Web API Client
  *
- * All communication with the sfi-engine FastAPI backend lives here.
- * Base URL is proxied via Vite in dev (/api → http://localhost:8000).
- * In production, set VITE_API_BASE env var.
+ * Drop this file into:  sfi-web/src/api.js
+ *
+ * Every function in this file maps 1-to-1 with a backend route.
+ * Vite's dev proxy (vite.config.js) forwards /api → http://localhost:8000
+ * so no CORS issues in development.
  */
 
-const BASE = import.meta.env.VITE_API_BASE ?? '/api'
+const BASE = "/api/v1";
 
-async function request(path, options = {}) {
-  const res = await fetch(`${BASE}${path}`, options)
+// ─── Shared fetch wrapper ────────────────────────────────────────────────────
+
+async function apiFetch(path, options = {}) {
+  const res = await fetch(path, options);
+
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(err.detail ?? 'Request failed')
+    let message = `API error ${res.status}`;
+    try {
+      const body = await res.json();
+      message = body.detail || message;
+    } catch (_) {}
+    throw new Error(message);
   }
-  return res.json()
+
+  return res.json();
 }
 
+// ─── Health ──────────────────────────────────────────────────────────────────
+
 /**
- * POST /analyze
- * Upload a schedule CSV and receive the full SFI report.
- *
- * @param {File}    file        — CSV file object
- * @param {object}  opts
- * @param {number}  opts.top    — Number of top risk tasks to return (default 10)
- * @param {boolean} opts.strict — Enable strict validation
- * @param {string}  opts.statusDate — YYYY-MM-DD status date (optional)
- * @returns {Promise<AnalyzeResult>}
+ * Ping the backend.
+ * @returns {{ status: string, service: string }}
  */
-export async function analyzeSchedule(file, opts = {}) {
-  const form = new FormData()
-  form.append('file', file)
-  if (opts.top)        form.append('top', String(opts.top))
-  if (opts.strict)     form.append('strict', 'true')
-  if (opts.statusDate) form.append('status_date', opts.statusDate)
-
-  return request('/analyze', { method: 'POST', body: form })
+export async function checkHealth() {
+  return apiFetch("/health");
 }
 
+// ─── Analysis ────────────────────────────────────────────────────────────────
+
 /**
- * GET /history
- * Returns list of saved snapshots.
+ * Upload a CSV file and run a full SFI analysis.
  *
- * @returns {Promise<Snapshot[]>}
+ * @param {File}   file         - The CSV File object from an <input type="file">
+ * @param {Object} [opts]
+ * @param {string} [opts.projectName] - Human-readable project label
+ * @param {string} [opts.statusDate]  - ISO date string, e.g. "2026-04-03"
+ * @param {Function} [opts.onProgress] - (percent: number) => void  (0–100)
+ *
+ * @returns {Promise<AnalysisResult>}
  */
-export async function fetchHistory() {
-  return request('/history')
+export async function analyzeSchedule(file, { projectName = "", statusDate = "", onProgress } = {}) {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("project_name", projectName);
+  form.append("status_date", statusDate);
+
+  // XHR used instead of fetch so we can track upload progress
+  if (onProgress) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `${BASE}/analyze`);
+
+      xhr.upload.addEventListener("progress", (e) => {
+        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      });
+
+      xhr.addEventListener("load", () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(JSON.parse(xhr.responseText));
+        } else {
+          let detail = `Server error ${xhr.status}`;
+          try { detail = JSON.parse(xhr.responseText).detail; } catch (_) {}
+          reject(new Error(detail));
+        }
+      });
+
+      xhr.addEventListener("error", () => reject(new Error("Network error during upload")));
+      xhr.send(form);
+    });
+  }
+
+  // Simple path — no progress tracking needed
+  return apiFetch(`${BASE}/analyze`, { method: "POST", body: form });
 }
 
 /**
- * GET /health
- * Simple health check.
+ * Retrieve a previously stored analysis by ID.
+ *
+ * @param {string} id
+ * @returns {Promise<AnalysisResult>}
  */
-export async function healthCheck() {
-  return request('/health')
+export async function getAnalysis(id) {
+  return apiFetch(`${BASE}/analyze/${encodeURIComponent(id)}`);
+}
+
+// ─── History ─────────────────────────────────────────────────────────────────
+
+/**
+ * List past analyses, newest first.
+ *
+ * @param {Object} [opts]
+ * @param {number} [opts.page=1]
+ * @param {number} [opts.pageSize=20]
+ * @param {string} [opts.project]   - Optional partial-match filter
+ *
+ * @returns {Promise<{ items: AnalysisSummary[], total: number }>}
+ */
+export async function listHistory({ page = 1, pageSize = 20, project = "" } = {}) {
+  const params = new URLSearchParams({ page, page_size: pageSize });
+  if (project) params.set("project", project);
+  return apiFetch(`${BASE}/history?${params}`);
 }
 
 /**
- * ─── Expected response shapes (for reference) ────────────────────────────────
+ * Load the full record for one historical analysis.
  *
- * AnalyzeResult {
- *   sfi_score:        number          // 0.00–10.00
- *   project_duration: number          // days
- *   total_tasks:      number
- *   metrics: {
- *     zero_float_density:         number
- *     critical_chain_length_ratio: number
- *     average_float:              number
- *     float_variance:             number
- *     dependency_density:         number
- *     task_compression_ratio:     number
- *   }
- *   tasks: Task[]
- *   progress?: ProgressResult        // only if status_date provided
- * }
+ * @param {string} id
+ * @returns {Promise<AnalysisResult>}
+ */
+export async function getHistoryItem(id) {
+  return apiFetch(`${BASE}/history/${encodeURIComponent(id)}`);
+}
+
+/**
+ * Compare two analyses for schedule drift.
  *
- * Task {
- *   task_id:      string
- *   task_name:    string
- *   duration_days: number
- *   total_float:  number
- *   es: number; ef: number; ls: number; lf: number
- *   is_critical:  boolean
- *   percent_complete?: number
- *   actual_start?:  string
- *   actual_finish?: string
- * }
+ * @param {string} idA  - Earlier analysis ID
+ * @param {string} idB  - Later analysis ID
+ * @returns {Promise<DriftReport>}
+ */
+export async function compareAnalyses(idA, idB) {
+  const params = new URLSearchParams({ id_a: idA, id_b: idB });
+  return apiFetch(`${BASE}/history/compare?${params}`);
+}
+
+/**
+ * Delete a stored analysis.
  *
- * ProgressResult {
- *   overdue_tasks_count:           number
- *   overdue_critical_tasks_count:  number
- *   late_start_tasks_count:        number
- *   late_start_critical_tasks_count: number
- *   overdue_task_ids:              string[]
- *   overdue_critical_task_ids:     string[]
- * }
- *
- * Snapshot {
- *   index:        number
- *   label:        string
- *   created_at:   string   // ISO datetime
- *   sfi_score:    number
- *   project_duration_days: number
- *   metrics:      object
- * }
+ * @param {string} id
+ * @returns {Promise<{ deleted: string }>}
+ */
+export async function deleteHistoryItem(id) {
+  return apiFetch(`${BASE}/history/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+// ─── JSDoc type hints (no TypeScript required) ───────────────────────────────
+
+/**
+ * @typedef {Object} AnalysisResult
+ * @property {string}   id
+ * @property {string}   project_name
+ * @property {string}   filename
+ * @property {string}   analyzed_at
+ * @property {number}   task_count
+ * @property {number}   critical_path_length
+ * @property {number}   sfi_score
+ * @property {string}   sfi_label
+ * @property {Object}   metrics
+ * @property {string}   risk_trend
+ * @property {Object[]} near_critical_tasks
+ * @property {Object[]} float_distribution
+ * @property {string[]} warnings
+ * @property {boolean}  engine_connected
+ */
+
+/**
+ * @typedef {Object} AnalysisSummary
+ * @property {string} id
+ * @property {string} project_name
+ * @property {string} filename
+ * @property {string} analyzed_at
+ * @property {number} sfi_score
+ * @property {string} sfi_label
+ * @property {number} task_count
+ * @property {string} risk_trend
  */

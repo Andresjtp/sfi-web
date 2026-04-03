@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Clock, TrendingDown, TrendingUp, Minus, RefreshCw } from 'lucide-react'
-import { fetchHistory } from '../lib/api.js'
+import { listHistory } from '../lib/api'
 import { sfiRiskBand, pct } from '../lib/utils.js'
 import clsx from 'clsx'
 
@@ -20,7 +20,7 @@ export default function HistoryPage() {
     setLoading(true)
     setError(null)
     try {
-      const data = await fetchHistory()
+      const data = await listHistory()
       setSnapshots(data)
     } catch (e) {
       setError(e.message)

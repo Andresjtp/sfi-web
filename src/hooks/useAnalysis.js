@@ -22,6 +22,7 @@ export function useAnalysis() {
     try {
       const data = await analyzeSchedule(file, opts)
       setResult(data)
+      return data
     } catch (err) {
       setError(err)
     } finally {
