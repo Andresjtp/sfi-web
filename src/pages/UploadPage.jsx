@@ -16,7 +16,7 @@ export default function UploadPage() {
   const inputRef = useRef()
 
   const handleFile = (f) => {
-    if (f && f.name.endsWith('.csv')) setFile(f)
+    if (f) setFile(f)
   }
 
   const onDrop = useCallback((e) => {
@@ -49,10 +49,10 @@ export default function UploadPage() {
       <div>
         <p className="label-mono mb-2">Schedule Analysis</p>
         <h1 className="font-mono text-2xl font-medium text-text-primary">
-          Upload Schedule CSV
+          Upload Schedule File
         </h1>
         <p className="text-text-secondary text-sm mt-2 font-body max-w-lg">
-          Upload a project schedule export to compute the Critical Path,
+          Upload a Primavera XER or CSV schedule export to compute the Critical Path,
           float distribution, and Schedule Fragility Index.
         </p>
       </div>
@@ -75,7 +75,7 @@ export default function UploadPage() {
         <input
           ref={inputRef}
           type="file"
-          accept=".csv"
+          
           className="hidden"
           onChange={(e) => handleFile(e.target.files[0])}
         />
@@ -101,7 +101,7 @@ export default function UploadPage() {
             <Upload size={32} className="text-text-dim" />
             <div>
               <p className="font-mono text-text-primary">
-                Drop your CSV here
+                Drop your CSV or XER here
               </p>
               <p className="font-mono text-xs text-text-secondary mt-1">
                 or click to browse

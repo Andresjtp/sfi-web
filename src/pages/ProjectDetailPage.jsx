@@ -57,8 +57,8 @@ function UploadTab({ projectId, onAnalysisComplete }) {
   const [progress, setProgress]     = useState(0)
 
   const handleFile = (f) => {
-    if (f && f.name.endsWith('.csv')) { setFile(f); setError(null) }
-    else if (f) setError('Please upload a .csv file.')
+    if (f && (f.name.endsWith('.csv') || f.name.endsWith('.xer'))) { setFile(f); setError(null) }
+    else if (f) setError('Please upload a .csv or .xer file.')
   }
 
   const onDrop = useCallback((e) => {
@@ -103,7 +103,7 @@ function UploadTab({ projectId, onAnalysisComplete }) {
           :           'border-border hover:border-muted hover:bg-panel/50'
         )}
       >
-        <input ref={inputRef} type="file" accept=".csv" className="hidden"
+        <input ref={inputRef} type="file" className="hidden"
           onChange={(e) => handleFile(e.target.files[0])} />
 
         {file ? (
