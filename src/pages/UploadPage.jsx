@@ -1,18 +1,20 @@
 import { useState, useRef, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Upload, FileText, X, AlertTriangle, ChevronRight } from 'lucide-react'
 import clsx from 'clsx'
-import { useAnalysis } from '../hooks/useAnalysis.js'
+import { analyzeSchedule } from '../lib/api.js'
 
 export default function UploadPage() {
-  const navigate = useNavigate()
-  const { analyze, loading, error } = useAnalysis()
+  const navigate          = useNavigate()
+  const { projectId }     = useParams()
 
-  const [file, setFile]           = useState(null)
-  const [dragging, setDragging]   = useState(false)
+  const [file, setFile]             = useState(null)
+  const [dragging, setDragging]     = useState(false)
   const [statusDate, setStatusDate] = useState('')
-  const [topN, setTopN]           = useState(10)
-  const [strict, setStrict]       = useState(false)
+  const [topN, setTopN]             = useState(10)
+  const [strict, setStrict]         = useState(false)
+  const [loading, setLoading]       = useState(false)
+  const [error, setError]           = useState(null)
   const inputRef = useRef()
 
   const handleFile = (f) => {
@@ -22,29 +24,36 @@ export default function UploadPage() {
   const onDrop = useCallback((e) => {
     e.preventDefault()
     setDragging(false)
-    const f = e.dataTransfer.files[0]
-    handleFile(f)
+    handleFile(e.dataTransfer.files[0])
   }, [])
 
-  const onDragOver = (e) => { e.preventDefault(); setDragging(true) }
+  const onDragOver  = (e) => { e.preventDefault(); setDragging(true) }
   const onDragLeave = () => setDragging(false)
 
   const handleSubmit = async () => {
-    if (!file) return
-    const result = await analyze(file, {
-      top: topN,
-      strict,
-      statusDate: statusDate || undefined,
-    })
-    // Store result in sessionStorage so ReportPage can access it
-    if (result) {
-      sessionStorage.setItem('sfi_result', JSON.stringify(result))
-      navigate('/report')
+    if (!file || !projectId) return
+    setLoading(true)
+    setError(null)
+    try {
+      const result = await analyzeSchedule(projectId, file, {
+        strict,
+        statusDate: statusDate || undefined,
+      })
+      if (result) {
+        sessionStorage.setItem('sfi_result', JSON.stringify(result))
+        sessionStorage.setItem('sfi_project_id', projectId)
+        navigate(`/report?projectId=${projectId}&analysisId=${result.id}`)
+      }
+    } catch (err) {
+      setError(err?.message ?? String(err))
+    } finally {
+      setLoading(false)
     }
   }
 
   return (
     <div className="animate-fade-in space-y-8">
+
       {/* Page header */}
       <div>
         <p className="label-mono mb-2">Schedule Analysis</p>
@@ -75,7 +84,6 @@ export default function UploadPage() {
         <input
           ref={inputRef}
           type="file"
-          
           className="hidden"
           onChange={(e) => handleFile(e.target.files[0])}
         />
@@ -100,15 +108,11 @@ export default function UploadPage() {
           <div className="flex flex-col items-center gap-3">
             <Upload size={32} className="text-text-dim" />
             <div>
-              <p className="font-mono text-text-primary">
-                Drop your CSV or XER here
-              </p>
-              <p className="font-mono text-xs text-text-secondary mt-1">
-                or click to browse
-              </p>
+              <p className="font-mono text-text-primary">Drop your CSV or XER here</p>
+              <p className="font-mono text-xs text-text-secondary mt-1">or click to browse</p>
             </div>
             <p className="font-mono text-xs text-text-dim">
-              Required columns: task_id · task_name · duration_days · predecessors
+              Supported formats: .csv · .xer (Primavera P6)
             </p>
           </div>
         )}
@@ -183,7 +187,7 @@ export default function UploadPage() {
       {error && (
         <div className="flex items-start gap-3 border border-critical/30 bg-critical/5 rounded-lg px-4 py-3">
           <AlertTriangle size={16} className="text-critical mt-0.5 flex-shrink-0" />
-          <p className="font-mono text-sm text-critical">{error.message}</p>
+          <p className="font-mono text-sm text-critical">{error}</p>
         </div>
       )}
 
@@ -207,6 +211,7 @@ export default function UploadPage() {
           )}
         </button>
       </div>
+
     </div>
   )
 }

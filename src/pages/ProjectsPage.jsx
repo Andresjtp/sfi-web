@@ -1,9 +1,26 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FolderOpen, Plus, Trash2, ChevronRight, AlertTriangle } from 'lucide-react'
-import { listProjects, createProject, deleteProject } from '../lib/api.js'
-import { sfiRiskBand } from '../lib/utils.js'
+import { FolderOpen, Plus, Trash2, ChevronRight, RefreshCw, AlertTriangle } from 'lucide-react'
+import { fetchProjects, createProject, deleteProject } from '../lib/api.js'
 import clsx from 'clsx'
+
+function RiskBadge({ label }) {
+  if (!label) return null
+  const colors = {
+    'Low Risk':      'text-stable border-stable/40 bg-stable/10',
+    'Moderate Risk': 'text-amber border-amber/40 bg-amber/10',
+    'High Risk':     'text-critical border-critical/40 bg-critical/10',
+    'Critical Risk': 'text-critical border-critical/60 bg-critical/20',
+  }
+  return (
+    <span className={clsx(
+      'font-mono text-xs px-2 py-0.5 rounded border',
+      colors[label] ?? 'text-text-dim border-border'
+    )}>
+      {label}
+    </span>
+  )
+}
 
 function formatDate(iso) {
   if (!iso) return '—'
@@ -12,110 +29,23 @@ function formatDate(iso) {
   })
 }
 
-function NewProjectModal({ onClose, onCreate }) {
-  const [name, setName]         = useState('')
-  const [desc, setDesc]         = useState('')
-  const [saving, setSaving]     = useState(false)
-  const [error, setError]       = useState(null)
-
-  const handleCreate = async () => {
-    if (!name.trim()) return
-    setSaving(true)
-    setError(null)
-    try {
-      const project = await createProject({ name: name.trim(), description: desc.trim() })
-      onCreate(project)
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-void/80 backdrop-blur-sm">
-      <div className="panel w-full max-w-md p-6 space-y-5 shadow-2xl">
-        <div>
-          <p className="label-mono mb-1">New Project</p>
-          <h2 className="font-mono text-lg font-medium text-text-primary">
-            Create a Project
-          </h2>
-          <p className="font-mono text-xs text-text-dim mt-1">
-            Group your CSV uploads and track schedule risk over time.
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          <div className="space-y-1">
-            <label className="font-mono text-xs text-text-secondary">
-              Project Name <span className="text-critical">*</span>
-            </label>
-            <input
-              autoFocus
-              type="text"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleCreate()}
-              placeholder="e.g. Channel 7 News Facility"
-              className="w-full bg-void border border-border rounded px-3 py-2 font-mono text-sm
-                         text-text-primary placeholder:text-text-dim
-                         focus:outline-none focus:border-amber transition-colors"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="font-mono text-xs text-text-secondary">
-              Description <span className="text-text-dim">(optional)</span>
-            </label>
-            <textarea
-              rows={2}
-              value={desc}
-              onChange={e => setDesc(e.target.value)}
-              placeholder="Miami, FL — Miller Construction"
-              className="w-full bg-void border border-border rounded px-3 py-2 font-mono text-sm
-                         text-text-primary placeholder:text-text-dim resize-none
-                         focus:outline-none focus:border-amber transition-colors"
-            />
-          </div>
-        </div>
-
-        {error && (
-          <div className="flex items-center gap-2 text-critical">
-            <AlertTriangle size={13} />
-            <p className="font-mono text-xs">{error}</p>
-          </div>
-        )}
-
-        <div className="flex justify-end gap-3 pt-1">
-          <button onClick={onClose} className="btn-ghost text-sm">
-            Cancel
-          </button>
-          <button
-            onClick={handleCreate}
-            disabled={!name.trim() || saving}
-            className="btn-primary text-sm flex items-center gap-2"
-          >
-            {saving ? 'Creating…' : 'Create Project'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export default function ProjectsPage() {
   const navigate = useNavigate()
-  const [projects, setProjects]       = useState([])
-  const [loading, setLoading]         = useState(true)
-  const [error, setError]             = useState(null)
-  const [showModal, setShowModal]     = useState(false)
-  const [deleting, setDeleting]       = useState(null)
+
+  const [projects, setProjects]   = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [error, setError]         = useState(null)
+  const [creating, setCreating]   = useState(false)
+  const [showForm, setShowForm]   = useState(false)
+  const [name, setName]           = useState('')
+  const [description, setDesc]    = useState('')
+  const [deleting, setDeleting]   = useState(null)
 
   const load = async () => {
     setLoading(true)
     setError(null)
     try {
-      const data = await listProjects()
+      const data = await fetchProjects()
       setProjects(data.projects ?? [])
     } catch (e) {
       setError(e.message)
@@ -126,10 +56,20 @@ export default function ProjectsPage() {
 
   useEffect(() => { load() }, [])
 
-  const handleCreated = (project) => {
-    setShowModal(false)
-    // Navigate straight into the new project
-    navigate(`/projects/${project.id}`)
+  const handleCreate = async () => {
+    if (!name.trim()) return
+    setCreating(true)
+    try {
+      const project = await createProject(name.trim(), description.trim())
+      setProjects(prev => [project, ...prev])
+      setName('')
+      setDesc('')
+      setShowForm(false)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setCreating(false)
+    }
   }
 
   const handleDelete = async (id, e) => {
@@ -139,8 +79,8 @@ export default function ProjectsPage() {
     try {
       await deleteProject(id)
       setProjects(prev => prev.filter(p => p.id !== id))
-    } catch (err) {
-      alert(`Could not delete: ${err.message}`)
+    } catch (e) {
+      alert(`Could not delete: ${e.message}`)
     } finally {
       setDeleting(null)
     }
@@ -152,22 +92,85 @@ export default function ProjectsPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <p className="label-mono mb-1">Schedule Risk Intelligence</p>
-          <h1 className="font-mono text-2xl font-medium text-text-primary">
-            Projects
-          </h1>
+          <p className="label-mono mb-1">Schedule Intelligence</p>
+          <h1 className="font-mono text-2xl font-medium text-text-primary">Projects</h1>
           <p className="text-text-secondary text-sm mt-2 max-w-lg">
-            Each project tracks its own schedule uploads and SFI trend over time.
+            Each project holds a schedule and its analysis history. Create a project to get started.
           </p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="btn-primary flex items-center gap-2"
-        >
-          <Plus size={15} />
-          New Project
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={load} className="btn-ghost flex items-center gap-2">
+            <RefreshCw size={14} className={clsx(loading && 'animate-spin')} />
+            Refresh
+          </button>
+          <button
+            onClick={() => setShowForm(f => !f)}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus size={14} />
+            New Project
+          </button>
+        </div>
       </div>
+
+      {/* Create form */}
+      {showForm && (
+        <div className="panel p-6 space-y-4 animate-fade-in border-amber/20">
+          <p className="label-mono">New Project</p>
+          <div className="space-y-3">
+            <div>
+              <label className="label-mono block mb-1.5">Project Name <span className="text-critical">*</span></label>
+              <input
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleCreate()}
+                placeholder="e.g. Channel 7 News Facility — Miami"
+                autoFocus
+                className="w-full bg-surface border border-border rounded px-3 py-2.5
+                           font-mono text-sm text-text-primary placeholder:text-text-dim
+                           focus:outline-none focus:border-amber transition-colors duration-150"
+              />
+            </div>
+            <div>
+              <label className="label-mono block mb-1.5">Description <span className="text-text-dim">(optional)</span></label>
+              <input
+                type="text"
+                value={description}
+                onChange={e => setDesc(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleCreate()}
+                placeholder="GC, owner, location, contract type…"
+                className="w-full bg-surface border border-border rounded px-3 py-2.5
+                           font-mono text-sm text-text-primary placeholder:text-text-dim
+                           focus:outline-none focus:border-amber transition-colors duration-150"
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-3 pt-1">
+            <button
+              onClick={handleCreate}
+              disabled={creating || !name.trim()}
+              className="btn-primary flex items-center gap-2"
+            >
+              {creating ? 'Creating…' : 'Create Project'}
+            </button>
+            <button
+              onClick={() => { setShowForm(false); setName(''); setDesc('') }}
+              className="btn-ghost"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Error */}
+      {error && (
+        <div className="panel p-4 border border-critical/30 bg-critical/5 flex items-start gap-2">
+          <AlertTriangle size={14} className="text-critical mt-0.5 shrink-0" />
+          <p className="font-mono text-sm text-critical">{error}</p>
+        </div>
+      )}
 
       {/* Loading */}
       {loading && (
@@ -176,141 +179,80 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      {/* Error */}
-      {!loading && error && (
-        <div className="panel p-6 border border-critical/30 bg-critical/5">
-          <p className="font-mono text-sm text-critical">{error}</p>
-          <p className="font-mono text-xs text-text-dim mt-1">
-            Make sure the API backend is running on port 8000.
-          </p>
-        </div>
-      )}
-
-      {/* Empty state */}
+      {/* Empty */}
       {!loading && !error && projects.length === 0 && (
-        <div className="panel p-16 flex flex-col items-center justify-center gap-4 text-center">
-          <FolderOpen size={40} className="text-text-dim" />
-          <div>
-            <p className="font-mono text-sm text-text-secondary">No projects yet</p>
-            <p className="font-mono text-xs text-text-dim mt-1 max-w-xs">
-              Create a project for each construction job to keep schedules and history organized.
-            </p>
-          </div>
-          <button
-            onClick={() => setShowModal(true)}
-            className="btn-primary flex items-center gap-2 mt-2"
-          >
-            <Plus size={14} />
-            Create your first project
+        <div className="panel p-12 flex flex-col items-center justify-center gap-3 text-center">
+          <FolderOpen size={32} className="text-text-dim" />
+          <p className="font-mono text-sm text-text-secondary">No projects yet</p>
+          <p className="font-mono text-xs text-text-dim max-w-sm">
+            Create your first project to start uploading schedules and tracking SFI over time.
+          </p>
+          <button onClick={() => setShowForm(true)} className="btn-primary mt-2 flex items-center gap-2">
+            <Plus size={14} /> New Project
           </button>
         </div>
       )}
 
-      {/* Projects table */}
-      {!loading && !error && projects.length > 0 && (
-        <div className="panel overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border">
-                {['Project', 'Description', 'Analyses', 'Latest SFI', 'Risk', 'Last Run', ''].map(h => (
-                  <th key={h} className="px-4 py-3 text-left font-mono text-xs text-text-secondary whitespace-nowrap">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {projects.map(project => {
-                const band = project.latest_sfi_score != null
-                  ? sfiRiskBand(project.latest_sfi_score)
-                  : null
-
-                return (
-                  <tr
-                    key={project.id}
-                    onClick={() => navigate(`/projects/${project.id}`)}
-                    className="border-b border-border/50 hover:bg-panel/50 transition-colors cursor-pointer group"
-                  >
-                    {/* Name */}
-                    <td className="px-4 py-3">
-                      <span className="font-mono text-sm font-medium text-text-primary group-hover:text-amber transition-colors">
-                        {project.name}
+      {/* Project list */}
+      {!loading && projects.length > 0 && (
+        <div className="space-y-3">
+          {projects.map(project => (
+            <div
+              key={project.id}
+              onClick={() => navigate(`/projects/${project.id}`)}
+              className="panel p-5 flex items-center justify-between
+                         hover:border-muted cursor-pointer transition-colors duration-150 group"
+            >
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-9 h-9 rounded-lg bg-amber/10 border border-amber/20
+                                flex items-center justify-center flex-shrink-0">
+                  <FolderOpen size={16} className="text-amber" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-mono text-sm font-medium text-text-primary truncate">
+                    {project.name}
+                  </p>
+                  {project.description && (
+                    <p className="font-mono text-xs text-text-dim truncate mt-0.5">
+                      {project.description}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-3 mt-1.5">
+                    <span className="font-mono text-xs text-text-dim">
+                      {project.analysis_count ?? 0} {project.analysis_count === 1 ? 'analysis' : 'analyses'}
+                    </span>
+                    <span className="font-mono text-xs text-text-dim">
+                      Updated {formatDate(project.updated_at)}
+                    </span>
+                    {project.latest_sfi_label && (
+                      <RiskBadge label={project.latest_sfi_label} />
+                    )}
+                    {project.latest_sfi_score != null && (
+                      <span className="font-mono text-xs text-text-secondary">
+                        SFI {project.latest_sfi_score.toFixed(2)}
                       </span>
-                    </td>
+                    )}
+                  </div>
+                </div>
+              </div>
 
-                    {/* Description */}
-                    <td className="px-4 py-3 font-mono text-xs text-text-dim max-w-[200px] truncate">
-                      {project.description || '—'}
-                    </td>
-
-                    {/* Analysis count */}
-                    <td className="px-4 py-3 font-mono text-sm text-text-secondary">
-                      {project.analysis_count ?? 0}
-                    </td>
-
-                    {/* Latest SFI */}
-                    <td className="px-4 py-3">
-                      {project.latest_sfi_score != null ? (
-                        <span className={clsx('font-mono text-sm font-medium', band?.text)}>
-                          {project.latest_sfi_score.toFixed(2)}
-                        </span>
-                      ) : (
-                        <span className="font-mono text-xs text-text-dim">—</span>
-                      )}
-                    </td>
-
-                    {/* Risk label */}
-                    <td className="px-4 py-3">
-                      {project.latest_sfi_label ? (
-                        <span className={clsx(
-                          'font-mono text-xs px-2 py-0.5 rounded border',
-                          band?.text,
-                          'border-current/40 bg-current/5'
-                        )}>
-                          {project.latest_sfi_label}
-                        </span>
-                      ) : (
-                        <span className="font-mono text-xs text-text-dim">No runs yet</span>
-                      )}
-                    </td>
-
-                    {/* Last run date */}
-                    <td className="px-4 py-3 font-mono text-xs text-text-dim whitespace-nowrap">
-                      {formatDate(project.latest_analyzed_at)}
-                    </td>
-
-                    {/* Actions */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3 justify-end">
-                        <button
-                          onClick={(e) => handleDelete(project.id, e)}
-                          disabled={deleting === project.id}
-                          className="text-text-dim hover:text-critical transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-40"
-                          title="Delete project"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                        <ChevronRight
-                          size={15}
-                          className="text-text-dim group-hover:text-amber transition-colors"
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+              <div className="flex items-center gap-3 flex-shrink-0 ml-4">
+                <button
+                  onClick={(e) => handleDelete(project.id, e)}
+                  disabled={deleting === project.id}
+                  className="text-text-dim hover:text-critical transition-colors
+                             disabled:opacity-40 opacity-0 group-hover:opacity-100"
+                  title="Delete project"
+                >
+                  <Trash2 size={14} />
+                </button>
+                <ChevronRight size={16} className="text-text-dim group-hover:text-text-secondary transition-colors" />
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* New project modal */}
-      {showModal && (
-        <NewProjectModal
-          onClose={() => setShowModal(false)}
-          onCreate={handleCreated}
-        />
-      )}
     </div>
   )
 }

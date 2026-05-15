@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Clock, TrendingDown, TrendingUp, Minus, RefreshCw, Trash2, ExternalLink } from 'lucide-react'
-import { listHistory, deleteHistoryItem } from '../lib/api.js'
+import { fetchHistory, deleteAnalysis } from '../lib/api.js'
 import { sfiRiskBand } from '../lib/utils.js'
 import clsx from 'clsx'
 
@@ -43,14 +43,13 @@ export default function HistoryPage() {
   const [total, setTotal]       = useState(0)
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState(null)
-  const [deleting, setDeleting] = useState(null)  // id currently being deleted
+  const [deleting, setDeleting] = useState(null)
 
   const load = async () => {
     setLoading(true)
     setError(null)
     try {
-      const data = await listHistory({ pageSize: 50 })
-      // API returns { items: [...], total: N }
+      const data = await fetchHistory(1, 50)
       setItems(data.items ?? [])
       setTotal(data.total ?? 0)
     } catch (e) {
@@ -62,13 +61,13 @@ export default function HistoryPage() {
 
   useEffect(() => { load() }, [])
 
-  const handleDelete = async (id, e) => {
+  const handleDelete = async (projectId, analysisId, e) => {
     e.stopPropagation()
     if (!window.confirm('Remove this analysis from history?')) return
-    setDeleting(id)
+    setDeleting(analysisId)
     try {
-      await deleteHistoryItem(id)
-      setItems(prev => prev.filter(item => item.id !== id))
+      await deleteAnalysis(projectId, analysisId)
+      setItems(prev => prev.filter(item => item.id !== analysisId))
       setTotal(prev => prev - 1)
     } catch (err) {
       alert(`Could not delete: ${err.message}`)
@@ -144,7 +143,7 @@ export default function HistoryPage() {
               <p className="font-mono text-xs text-text-dim">{total} total runs</p>
             </div>
             <div className="flex items-end gap-1" style={{ height: '80px' }}>
-              {[...items].reverse().map((item, i) => {
+              {[...items].reverse().map((item) => {
                 const band = sfiRiskBand(item.sfi_score)
                 const heightPct = (item.sfi_score / 10) * 100
                 return (
@@ -185,33 +184,24 @@ export default function HistoryPage() {
               </thead>
               <tbody>
                 {items.map((item, i) => {
-                  const prev = items[i + 1]   // items are newest-first
+                  const prev = items[i + 1]
                   return (
                     <tr
                       key={item.id}
                       className="border-b border-border/50 hover:bg-panel/50 transition-colors"
                     >
-                      {/* Project name */}
                       <td className="px-4 py-3 font-mono text-sm text-text-primary max-w-[140px] truncate">
                         {item.project_name || '—'}
                       </td>
-
-                      {/* Filename */}
                       <td className="px-4 py-3 font-mono text-xs text-text-secondary max-w-[140px] truncate">
                         {item.filename}
                       </td>
-
-                      {/* Date */}
                       <td className="px-4 py-3 font-mono text-xs text-text-dim whitespace-nowrap">
                         {formatDate(item.analyzed_at)}
                       </td>
-
-                      {/* Task count */}
                       <td className="px-4 py-3 font-mono text-sm text-text-primary">
                         {item.task_count ?? '—'}
                       </td>
-
-                      {/* SFI score */}
                       <td className="px-4 py-3">
                         <span className={clsx(
                           'font-mono text-sm font-medium',
@@ -220,32 +210,23 @@ export default function HistoryPage() {
                           {item.sfi_score?.toFixed(2) ?? '—'}
                         </span>
                       </td>
-
-                      {/* Risk label */}
                       <td className="px-4 py-3">
                         <RiskBadge label={item.sfi_label} />
                       </td>
-
-                      {/* Trend vs previous */}
                       <td className="px-4 py-3">
-                        <TrendIcon
-                          current={item.sfi_score}
-                          previous={prev?.sfi_score}
-                        />
+                        <TrendIcon current={item.sfi_score} previous={prev?.sfi_score} />
                       </td>
-
-                      {/* Actions */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => navigate(`/report?id=${item.id}`)}
+                            onClick={() => navigate(`/report?projectId=${item.project_id}&analysisId=${item.id}`)}
                             className="text-text-dim hover:text-text-primary transition-colors"
                             title="View report"
                           >
                             <ExternalLink size={13} />
                           </button>
                           <button
-                            onClick={(e) => handleDelete(item.id, e)}
+                            onClick={(e) => handleDelete(item.project_id, item.id, e)}
                             disabled={deleting === item.id}
                             className="text-text-dim hover:text-critical transition-colors disabled:opacity-40"
                             title="Delete"

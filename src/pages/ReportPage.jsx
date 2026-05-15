@@ -6,7 +6,7 @@ import MetricsGrid from '../components/dashboard/MetricsGrid.jsx'
 import TaskTable from '../components/dashboard/TaskTable.jsx'
 import FloatChart from '../components/dashboard/FloatChart.jsx'
 import ProgressPanel from '../components/dashboard/ProgressPanel.jsx'
-import { getAnalysis } from '../lib/api.js'
+import { fetchAnalysis } from '../lib/api.js'
 
 export default function ReportPage() {
   const navigate = useNavigate()
@@ -22,10 +22,9 @@ export default function ReportPage() {
     // ── Path A: loaded from history link (?projectId=...&analysisId=...)
     if (projectId && analysisId) {
       setLoading(true)
-      getAnalysis(projectId, analysisId)
+      fetchAnalysis(projectId, analysisId)
         .then(data => {
           setResult(data)
-          // Keep sessionStorage in sync so refresh still works
           sessionStorage.setItem('sfi_result', JSON.stringify(data))
           sessionStorage.setItem('sfi_project_id', projectId)
         })
@@ -68,7 +67,6 @@ export default function ReportPage() {
     URL.revokeObjectURL(url)
   }
 
-  // ── Loading state (fetching from API)
   if (loading) return (
     <div className="flex items-center justify-center min-h-[60vh]">
       <div className="flex items-center gap-3 font-mono text-sm text-text-dim">
@@ -78,7 +76,6 @@ export default function ReportPage() {
     </div>
   )
 
-  // ── Error state
   if (error) return (
     <div className="space-y-4">
       <button onClick={handleBack}
@@ -137,13 +134,10 @@ export default function ReportPage() {
 
       {/* Top summary row */}
       <div className="grid grid-cols-4 gap-4">
-        {/* SFI Gauge */}
         <div className="panel p-6 flex flex-col items-center justify-center col-span-1">
           <p className="label-mono mb-4">Fragility Index</p>
           <SFIGauge score={sfi_score} />
         </div>
-
-        {/* Summary stats */}
         <div className="col-span-3 grid grid-cols-3 gap-3">
           {[
             { label: 'Project Duration', value: project_duration ?? '—', unit: 'days' },
@@ -164,10 +158,8 @@ export default function ReportPage() {
         </div>
       </div>
 
-      {/* Metrics grid */}
       {metrics && <MetricsGrid metrics={metrics} />}
 
-      {/* Float distribution chart */}
       {float_distribution.length > 0 && (
         <div className="panel p-5 space-y-3">
           <p className="label-mono">Float Distribution</p>
@@ -175,7 +167,6 @@ export default function ReportPage() {
         </div>
       )}
 
-      {/* Near-critical tasks */}
       {near_critical_tasks.length > 0 && (
         <div className="panel overflow-hidden">
           <div className="px-5 py-4 border-b border-border">
@@ -217,10 +208,7 @@ export default function ReportPage() {
         </div>
       )}
 
-      {/* Full task table (if raw tasks array is present) */}
       {tasks.length > 0 && <TaskTable tasks={tasks} />}
-
-      {/* Progress panel */}
       {progress && <ProgressPanel progress={progress} statusDate={status_date} />}
 
     </div>
