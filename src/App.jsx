@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext.jsx'
 import AppLayout from './components/layout/AppLayout.jsx'
 import AuthPage from './pages/AuthPage.jsx'
 import ProjectsPage from './pages/ProjectsPage.jsx'
+import ProjectDetailPage from './pages/ProjectDetailPage.jsx'
 import UploadPage from './pages/UploadPage.jsx'
 import ReportPage from './pages/ReportPage.jsx'
 import HistoryPage from './pages/HistoryPage.jsx'
@@ -20,13 +21,10 @@ function AppRoutes() {
 
   return (
     <Routes>
-      {/* Public */}
       <Route
         path="/auth"
         element={user ? <Navigate to="/projects" replace /> : <AuthPage />}
       />
-
-      {/* Protected */}
       <Route
         element={
           <ProtectedRoute>
@@ -36,12 +34,11 @@ function AppRoutes() {
       >
         <Route index element={<Navigate to="/projects" replace />} />
         <Route path="/projects" element={<ProjectsPage />} />
-        <Route path="/projects/:projectId" element={<UploadPage />} />
+        <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
+        <Route path="/projects/:projectId/report" element={<ReportPage />} />
         <Route path="/report" element={<ReportPage />} />
         <Route path="/history" element={<HistoryPage />} />
       </Route>
-
-      {/* Catch-all */}
       <Route path="*" element={<Navigate to="/projects" replace />} />
     </Routes>
   )

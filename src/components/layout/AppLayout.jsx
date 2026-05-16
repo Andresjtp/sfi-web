@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { FolderOpen, BarChart2, LogOut } from 'lucide-react'
+import { FolderOpen, LogOut } from 'lucide-react'
 import clsx from 'clsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 
@@ -35,19 +35,6 @@ export default function AppLayout() {
           >
             <FolderOpen size={15} />
             Projects
-          </NavLink>
-
-          <NavLink
-            to="/report"
-            className={({ isActive }) => clsx(
-              'flex items-center gap-3 px-3 py-2 rounded-lg font-mono text-sm transition-colors',
-              isActive
-                ? 'bg-amber/10 text-amber'
-                : 'text-text-secondary hover:text-text-primary hover:bg-panel'
-            )}
-          >
-            <BarChart2 size={15} />
-            Last Report
           </NavLink>
         </nav>
 
