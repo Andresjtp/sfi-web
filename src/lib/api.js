@@ -72,6 +72,10 @@ export async function analyzeSchedule(file, opts = {}, projectId = null) {
   return request(path, { method: 'POST', body: form })
 }
 
+export async function fetchFullAnalysis(projectId, analysisId) {
+  return request(`/projects/${projectId}/analyses/${analysisId}`)
+}
+
 // ─── History ─────────────────────────────────────────────────────────────────
 
 /**

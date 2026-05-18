@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Clock, TrendingDown, TrendingUp, Minus, RefreshCw, ChevronRight } from 'lucide-react'
-import { fetchProjectHistory } from '../lib/api.js'
+import { fetchProjectHistory, fetchFullAnalysis } from '../lib/api.js'
 import { sfiRiskBand } from '../lib/utils.js'
 import clsx from 'clsx'
 
@@ -34,10 +34,15 @@ export default function ProjectHistoryTab({ projectId }) {
 
   useEffect(() => { load() }, [projectId])
 
-  const handleViewReport = (snapshot) => {
-    sessionStorage.setItem('sfi_result', JSON.stringify(snapshot))
+  const handleViewReport = async (snapshot) => {
+  try {
+    const full = await fetchFullAnalysis(snapshot.project_id, snapshot.id)
+    sessionStorage.setItem('sfi_result', JSON.stringify(full))
     navigate(`/projects/${projectId}/report`)
+  } catch (e) {
+    setError('Could not load report: ' + e.message)
   }
+}
 
   return (
     <div className="space-y-6">
