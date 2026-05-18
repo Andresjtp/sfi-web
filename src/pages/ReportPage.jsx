@@ -1,12 +1,161 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Download } from 'lucide-react'
+import { ArrowLeft, Download, Sparkles, RefreshCw, AlertCircle } from 'lucide-react'
 import SFIGauge from '../components/dashboard/SFIGauge.jsx'
 import MetricsGrid from '../components/dashboard/MetricsGrid.jsx'
 import TaskTable from '../components/dashboard/TaskTable.jsx'
 import FloatChart from '../components/dashboard/FloatChart.jsx'
 import ProgressPanel from '../components/dashboard/ProgressPanel.jsx'
+import { fetchNarrative } from '../lib/api.js'
 
+// ── Narrative section parser ──────────────────────────────────────────────────
+// The LLM returns a plain-text report with three labeled sections.
+// This splits it into structured blocks for clean rendering.
+function parseNarrative(text) {
+  const sections = []
+  const pattern = /(\d+\.\s+[A-Z][A-Z\s]+?)(?:\n)([\s\S]*?)(?=\n\d+\.\s+[A-Z]|$)/g
+  let match
+  while ((match = pattern.exec(text)) !== null) {
+    sections.push({
+      title: match[1].trim(),
+      body:  match[2].trim(),
+    })
+  }
+  // Fallback — if parsing fails, return the whole text as one block
+  return sections.length > 0 ? sections : [{ title: null, body: text.trim() }]
+}
+
+// ── Narrative panel component ─────────────────────────────────────────────────
+function NarrativePanel({ projectId, analysisId }) {
+  const [state, setState]     = useState('idle')   // idle | loading | success | error
+  const [narrative, setNarrative] = useState(null)
+  const [meta, setMeta]       = useState(null)
+  const [error, setError]     = useState(null)
+
+  const generate = async (bypassCache = false) => {
+    setState('loading')
+    setError(null)
+    try {
+      const data = await fetchNarrative(projectId, analysisId, bypassCache)
+      setNarrative(data.narrative)
+      setMeta({
+        provider:    data.model_provider,
+        generatedAt: data.generated_at,
+        fromCache:   data.from_cache,
+      })
+      setState('success')
+    } catch (err) {
+      setError(err.message ?? 'Failed to generate narrative.')
+      setState('error')
+    }
+  }
+
+  // ── Idle state — prompt to generate ──────────────────────────────────────
+  if (state === 'idle') {
+    return (
+      <div className="panel p-8 flex flex-col items-center justify-center gap-4 text-center">
+        <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
+          <Sparkles size={18} className="text-accent" />
+        </div>
+        <div>
+          <p className="font-mono text-sm font-medium text-text-primary mb-1">
+            AI Narrative Report
+          </p>
+          <p className="font-body text-sm text-text-dim max-w-sm">
+            Generate a plain-language summary of this analysis — risk drivers,
+            cascade exposure, and recommended actions.
+          </p>
+        </div>
+        <button
+          onClick={() => generate(false)}
+          className="btn-primary flex items-center gap-2"
+        >
+          <Sparkles size={13} />
+          Generate Report
+        </button>
+      </div>
+    )
+  }
+
+  // ── Loading state ─────────────────────────────────────────────────────────
+  if (state === 'loading') {
+    return (
+      <div className="panel p-8 flex flex-col items-center justify-center gap-3 text-center">
+        <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center animate-pulse">
+          <Sparkles size={18} className="text-accent" />
+        </div>
+        <p className="font-mono text-sm text-text-dim">Analyzing schedule data…</p>
+      </div>
+    )
+  }
+
+  // ── Error state ───────────────────────────────────────────────────────────
+  if (state === 'error') {
+    return (
+      <div className="panel p-6 flex flex-col gap-3">
+        <div className="flex items-center gap-2 text-critical">
+          <AlertCircle size={15} />
+          <p className="font-mono text-sm font-medium">Narrative generation failed</p>
+        </div>
+        <p className="font-body text-sm text-text-dim">{error}</p>
+        <button
+          onClick={() => generate(false)}
+          className="btn-ghost self-start flex items-center gap-2 text-sm"
+        >
+          <RefreshCw size={13} /> Try again
+        </button>
+      </div>
+    )
+  }
+
+  // ── Success state — render narrative ──────────────────────────────────────
+  const sections = parseNarrative(narrative)
+
+  return (
+    <div className="panel p-6 space-y-6">
+
+      {/* Panel header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Sparkles size={15} className="text-accent" />
+          <p className="label-mono">AI Narrative Report</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {meta?.fromCache && (
+            <span className="font-mono text-xs text-text-dim">cached</span>
+          )}
+          <span className="font-mono text-xs text-text-dim capitalize">
+            {meta?.provider}
+          </span>
+          <button
+            onClick={() => generate(true)}
+            className="btn-ghost flex items-center gap-1.5 text-xs"
+            title="Regenerate (bypasses cache)"
+          >
+            <RefreshCw size={11} /> Regenerate
+          </button>
+        </div>
+      </div>
+
+      {/* Narrative sections */}
+      <div className="space-y-5 divide-y divide-border/40">
+        {sections.map((section, i) => (
+          <div key={i} className={i > 0 ? 'pt-5' : ''}>
+            {section.title && (
+              <p className="label-mono mb-3">{section.title}</p>
+            )}
+            <div className="font-body text-sm text-text-secondary leading-relaxed whitespace-pre-line">
+              {section.body}
+            </div>
+          </div>
+        ))}
+      </div>
+
+    </div>
+  )
+}
+
+// ── Main ReportPage ───────────────────────────────────────────────────────────
 export default function ReportPage() {
   const navigate = useNavigate()
   const { projectId } = useParams()
@@ -25,6 +174,7 @@ export default function ReportPage() {
   if (!result) return null
 
   const { sfi_score, project_duration, total_tasks, metrics, tasks = [], progress, status_date } = result
+  const analysisId    = result.id
   const criticalCount = tasks.filter(t => t.is_critical).length
 
   const handleExport = () => {
@@ -37,7 +187,7 @@ export default function ReportPage() {
     URL.revokeObjectURL(url)
   }
 
-  const backPath = projectId ? `/projects/${projectId}` : '/'
+  const backPath  = projectId ? `/projects/${projectId}` : '/'
   const backLabel = projectId ? 'Back to Project' : 'Back to Upload'
 
   return (
@@ -91,6 +241,11 @@ export default function ReportPage() {
       )}
 
       <MetricsGrid metrics={metrics} />
+
+      {/* AI Narrative — sits between metrics and float chart */}
+      {projectId && analysisId && (
+        <NarrativePanel projectId={projectId} analysisId={analysisId} />
+      )}
 
       <div className="grid grid-cols-2 gap-6">
         <FloatChart tasks={tasks} />

@@ -76,6 +76,20 @@ export async function fetchFullAnalysis(projectId, analysisId) {
   return request(`/projects/${projectId}/analyses/${analysisId}`)
 }
 
+// ─── Narrative ───────────────────────────────────────────────────────────────
+
+/**
+ * POST /projects/:projectId/analyses/:analysisId/narrative
+ * Generate (or return cached) AI narrative for an existing analysis.
+ */
+export async function fetchNarrative(projectId, analysisId, bypassCache = false) {
+  return request(`/projects/${projectId}/analyses/${analysisId}/narrative`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bypass_cache: bypassCache }),
+  })
+}
+
 // ─── History ─────────────────────────────────────────────────────────────────
 
 /**
