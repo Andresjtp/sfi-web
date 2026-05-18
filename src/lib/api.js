@@ -100,6 +100,24 @@ export async function deleteAnalysis(projectId, analysisId) {
   })
 }
 
+// ─── Monitor: Trend + Drift ───────────────────────────────────────────────────
+
+/**
+ * GET /projects/:id/trend
+ * Returns the Schedule Health Pulse — SFI timeline + per-metric trends.
+ */
+export async function fetchProjectTrend(projectId, limit = 50) {
+  return request(`/projects/${projectId}/trend?limit=${limit}`)
+}
+
+/**
+ * GET /projects/:id/analyses/compare?id_a=&id_b=
+ * Returns the full Critical Path Drift report between two analyses.
+ */
+export async function compareAnalyses(projectId, idA, idB) {
+  return request(`/projects/${projectId}/analyses/compare?id_a=${idA}&id_b=${idB}`)
+}
+
 // ─── Health ──────────────────────────────────────────────────────────────────
 
 export async function healthCheck() {
