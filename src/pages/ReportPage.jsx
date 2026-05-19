@@ -173,9 +173,9 @@ export default function ReportPage() {
 
   if (!result) return null
 
-  const { sfi_score, project_duration, total_tasks, metrics, tasks = [], progress, status_date } = result
+  const { sfi_score, project_duration, task_count: total_tasks, metrics, near_critical_tasks: tasks = [], progress, status_date } = result
   const analysisId    = result.id
-  const criticalCount = tasks.filter(t => t.is_critical).length
+  const criticalCount = result.critical_path_length ?? tasks.filter(t => t.total_float === 0).length
 
   const handleExport = () => {
     const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' })
