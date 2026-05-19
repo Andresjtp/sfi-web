@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Upload, FileText, X, AlertTriangle, ChevronRight } from 'lucide-react'
+import { Upload, FileText, X, AlertTriangle, ChevronRight, RefreshCw } from 'lucide-react'
 import clsx from 'clsx'
 import { analyzeSchedule } from '../lib/api.js'
 

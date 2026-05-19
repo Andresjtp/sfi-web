@@ -11,7 +11,7 @@ import { fetchProject } from '../lib/api.js'
 const TABS = [
   { id: 'analyze', label: 'Analyze', icon: Upload },
   { id: 'history', label: 'History', icon: Clock },
-  { id: 'trend',   label: 'Trend',   icon: Activity },
+  { id: 'trend',    label: 'Trend',    icon: Activity },
 ]
 
 export default function ProjectDetailPage() {
@@ -94,7 +94,6 @@ export default function ProjectDetailPage() {
       {activeTab === 'trend' && (
         <TrendTab projectId={projectId} />
       )}
-
       {/* Drift drawer — rendered at page level so it overlays everything */}
       {driftIds && (
         <DriftDrawer

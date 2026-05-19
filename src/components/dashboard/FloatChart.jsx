@@ -87,8 +87,9 @@ export default function FloatChart({ data = [], tasks = [] }) {
 
   if (chartData.length === 0 || chartData.every(d => d.count === 0)) {
     return (
-      <div className="flex items-center justify-center h-[180px]">
+      <div className="flex flex-col items-center justify-center gap-2 h-[180px]">
         <p className="font-mono text-xs text-text-dim">No float data available</p>
+        <p className="font-mono text-xs text-text-dim opacity-50">Re-upload the schedule to generate this chart</p>
       </div>
     )
   }

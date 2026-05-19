@@ -5,7 +5,7 @@ import clsx from 'clsx'
 const COLS = [
   { key: 'task_id',      label: 'ID',        sortable: true  },
   { key: 'task_name',    label: 'Task Name',  sortable: false },
-  { key: 'duration_days',label: 'Duration',   sortable: true  },
+  { key: 'duration',     label: 'Duration',   sortable: true  },
   { key: 'es',           label: 'ES',         sortable: true  },
   { key: 'ef',           label: 'EF',         sortable: true  },
   { key: 'total_float',  label: 'Float',      sortable: true  },
@@ -97,7 +97,9 @@ export default function TaskTable({ tasks = [] }) {
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={COLS.length} className="px-4 py-8 text-center font-mono text-sm text-text-dim">
-                    No tasks match filter
+                    {tasks.length === 0
+                      ? 'Task detail is only available for newly analyzed schedules — re-upload to view.'
+                      : 'No tasks match filter'}
                   </td>
                 </tr>
               ) : (
@@ -111,7 +113,7 @@ export default function TaskTable({ tasks = [] }) {
                   >
                     <td className="px-4 py-2.5 font-mono text-xs text-text-secondary">{task.task_id}</td>
                     <td className="px-4 py-2.5 font-body text-sm text-text-primary max-w-xs truncate">{task.task_name}</td>
-                    <td className="px-4 py-2.5 font-mono text-sm text-text-primary">{task.duration_days}d</td>
+                    <td className="px-4 py-2.5 font-mono text-sm text-text-primary">{task.duration}d</td>
                     <td className="px-4 py-2.5 font-mono text-sm text-text-secondary">{task.es}</td>
                     <td className="px-4 py-2.5 font-mono text-sm text-text-secondary">{task.ef}</td>
                     <td className="px-4 py-2.5">

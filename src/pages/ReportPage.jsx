@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Download, Sparkles, RefreshCw, AlertCircle } from 'lucide-react'
 import SFIGauge from '../components/dashboard/SFIGauge.jsx'
 import MetricsGrid from '../components/dashboard/MetricsGrid.jsx'
-import TaskTable from '../components/dashboard/TaskTable.jsx'
 import FloatChart from '../components/dashboard/FloatChart.jsx'
 import ProgressPanel from '../components/dashboard/ProgressPanel.jsx'
 import { fetchNarrative } from '../lib/api.js'
@@ -173,9 +172,9 @@ export default function ReportPage() {
 
   if (!result) return null
 
-  const { sfi_score, project_duration, task_count: total_tasks, metrics, near_critical_tasks: tasks = [], progress, status_date } = result
+  const { sfi_score, project_duration, task_count: total_tasks, metrics, near_critical_tasks: topTasks = [], progress, status_date } = result
   const analysisId    = result.id
-  const criticalCount = result.critical_path_length ?? tasks.filter(t => t.total_float === 0).length
+  const criticalCount = result.critical_path_length ?? 0
 
   const handleExport = () => {
     const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' })
@@ -248,45 +247,52 @@ export default function ReportPage() {
       )}
 
       <div className="grid grid-cols-2 gap-6">
-        <FloatChart tasks={tasks} />
+        <div className="panel p-4">
+          <p className="label-mono mb-4">Float Distribution</p>
+          <FloatChart data={result.float_distribution ?? []} />
+        </div>
 
         <div>
           <p className="label-mono mb-4">Top Risk Tasks</p>
           <div className="panel divide-y divide-border/50">
-            {tasks
-              .slice()
-              .sort((a, b) => a.total_float - b.total_float || a.es - b.es)
-              .slice(0, 8)
-              .map((task, i) => (
-                <div key={task.task_id} className="flex items-center justify-between px-4 py-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="font-mono text-xs text-text-dim w-5 flex-shrink-0">
-                      {String(i + 1).padStart(2, '0')}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="font-body text-sm text-text-primary truncate">{task.task_name}</p>
-                      <p className="font-mono text-xs text-text-dim">{task.task_id}</p>
+            {topTasks.length === 0 ? (
+              <div className="px-4 py-8 text-center">
+                <p className="font-mono text-xs text-text-dim">No near-critical tasks found</p>
+              </div>
+            ) : (
+              topTasks
+                .slice()
+                .sort((a, b) => (a.total_float ?? 0) - (b.total_float ?? 0))
+                .slice(0, 8)
+                .map((task, i) => (
+                  <div key={task.task_id ?? i} className="flex items-center justify-between px-4 py-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="font-mono text-xs text-text-dim w-5 flex-shrink-0">
+                        {String(i + 1).padStart(2, '0')}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="font-body text-sm text-text-primary truncate">{task.task_name}</p>
+                        <p className="font-mono text-xs text-text-dim">{task.task_id}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0 ml-4">
+                      {task.is_critical && <span className="tag-critical">CRIT</span>}
+                      <span className={
+                        task.total_float === 0
+                          ? 'font-mono text-sm font-medium text-critical'
+                          : task.total_float <= 2
+                          ? 'font-mono text-sm font-medium text-warning'
+                          : 'font-mono text-sm text-text-secondary'
+                      }>
+                        {task.total_float}d
+                      </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 flex-shrink-0 ml-4">
-                    {task.is_critical && <span className="tag-critical">CRIT</span>}
-                    <span className={
-                      task.total_float === 0
-                        ? 'font-mono text-sm font-medium text-critical'
-                        : task.total_float <= 2
-                        ? 'font-mono text-sm font-medium text-warning'
-                        : 'font-mono text-sm text-text-secondary'
-                    }>
-                      {task.total_float}d
-                    </span>
-                  </div>
-                </div>
-              ))}
+                ))
+            )}
           </div>
         </div>
       </div>
-
-      <TaskTable tasks={tasks} />
     </div>
   )
 }
