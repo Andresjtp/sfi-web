@@ -76,6 +76,15 @@ export async function fetchFullAnalysis(projectId, analysisId) {
   return request(`/projects/${projectId}/analyses/${analysisId}`)
 }
 
+export async function fetchDriftSummary(projectId, idA, idB, regenerate = false) {
+  const params = new URLSearchParams({ id_a: idA, id_b: idB });
+  if (regenerate) params.set("regenerate", "true");
+  return request(
+    `/projects/${projectId}/analyses/drift-summary?${params.toString()}`,
+    { method: "POST" }
+  );
+}
+
 // ─── Narrative ───────────────────────────────────────────────────────────────
 
 /**

@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
-import { X, TrendingUp, TrendingDown, Minus, AlertTriangle, RefreshCw, GitCompare } from 'lucide-react'
+import { useEffect, useState, useCallback } from 'react'
+import { X, TrendingUp, TrendingDown, Minus, AlertTriangle, RefreshCw, GitCompare, Sparkles, ChevronDown, ChevronUp } from 'lucide-react'
 import clsx from 'clsx'
-import { compareAnalyses } from '../lib/api.js'
+import { compareAnalyses, fetchDriftSummary } from '../lib/api.js'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -27,7 +27,6 @@ function DirectionBadge({ direction, size = 'md' }) {
 }
 
 function DeltaValue({ value, inverse = false, suffix = '' }) {
-  // inverse=true means a positive delta is good (e.g. gaining float)
   const isNeutral = Math.abs(value) < 0.0001
   const isBad  = inverse ? value < -0.0001 : value > 0.0001
   const isGood = inverse ? value > 0.0001  : value < -0.0001
@@ -46,6 +45,221 @@ function SectionHeader({ children }) {
     <p className="font-mono text-xs text-text-dim uppercase tracking-wider pt-4 pb-2 border-t border-border/50 first:border-t-0 first:pt-0">
       {children}
     </p>
+  )
+}
+
+// ─── AI Summary skeleton ───────────────────────────────────────────────────────
+
+function NarrativeSkeleton() {
+  return (
+    <div className="space-y-2 animate-pulse">
+      <div className="h-3 bg-border/40 rounded w-3/4" />
+      <div className="h-3 bg-border/40 rounded w-full" />
+      <div className="h-3 bg-border/40 rounded w-5/6" />
+      <div className="h-3 bg-border/30 rounded w-2/3 mt-3" />
+      <div className="h-3 bg-border/30 rounded w-full" />
+      <div className="h-3 bg-border/30 rounded w-4/5" />
+    </div>
+  )
+}
+
+// ─── AI Summary panel ─────────────────────────────────────────────────────────
+
+// Parses the three-section narrative text into { driftSummary, rootCause, actions }
+// Handles both "1. DRIFT SUMMARY" header styles and plain paragraph fallback.
+function parseNarrativeSections(text) {
+  if (!text) return { driftSummary: '', rootCause: '', actions: '' }
+
+  const section = (label) => {
+    // Match numbered headers like "1. DRIFT SUMMARY" or "## DRIFT SUMMARY"
+    const re = new RegExp(
+      `(?:^|\\n)(?:\\d+\\.\\s*|#{1,3}\\s*)?${label}[:\\s]*\\n([\\s\\S]*?)(?=\\n(?:\\d+\\.\\s*|#{1,3}\\s*)?(?:ROOT CAUSE|RECOMMENDED|$))`,
+      'i'
+    )
+    const m = text.match(re)
+    return m ? m[1].trim() : ''
+  }
+
+  const driftSummary = section('DRIFT SUMMARY')
+  const rootCause    = section('ROOT CAUSE')
+  const actions      = section('RECOMMENDED')
+
+  // Fallback: if parsing failed, show raw text in the first section
+  if (!driftSummary && !rootCause && !actions) {
+    return { driftSummary: text, rootCause: '', actions: '' }
+  }
+
+  return { driftSummary, rootCause, actions }
+}
+
+// Renders a block that may contain bullet lines (lines starting with - or •)
+function NarrativeBlock({ text }) {
+  if (!text) return null
+  const lines = text.split('\n').filter(l => l.trim())
+  return (
+    <div className="space-y-1.5">
+      {lines.map((line, i) => {
+        const isBullet = /^[-•*]/.test(line.trim())
+        const content  = isBullet ? line.trim().replace(/^[-•*]\s*/, '') : line.trim()
+        return isBullet ? (
+          <div key={i} className="flex gap-2">
+            <span className="text-amber mt-0.5 shrink-0 font-mono text-xs">—</span>
+            <p className="font-mono text-xs text-text-secondary leading-relaxed">{content}</p>
+          </div>
+        ) : (
+          <p key={i} className="font-mono text-xs text-text-secondary leading-relaxed">{content}</p>
+        )
+      })}
+    </div>
+  )
+}
+
+function AISummaryPanel({ projectId, idA, idB, driftReady }) {
+  const [summary, setSummary]         = useState(null)
+  const [loading, setLoading]         = useState(false)
+  const [error, setError]             = useState(null)
+  const [expanded, setExpanded]       = useState(true)
+  const [everLoaded, setEverLoaded]   = useState(false)
+
+  const load = useCallback(async (regenerate = false) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await fetchDriftSummary(projectId, idA, idB, regenerate)
+      setSummary(data)
+      setEverLoaded(true)
+      setExpanded(true)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [projectId, idA, idB])
+
+  // Auto-load once the drift comparison data is ready
+  useEffect(() => {
+    if (driftReady && !everLoaded) {
+      load(false)
+    }
+  }, [driftReady, everLoaded, load])
+
+  const sections = summary ? parseNarrativeSections(summary.text) : null
+
+  const borderColor =
+    summary?.direction === 'worsening' ? 'border-critical/25' :
+    summary?.direction === 'improving' ? 'border-stable/25'   :
+    'border-amber/20'
+
+  const headerAccent =
+    summary?.direction === 'worsening' ? 'text-critical' :
+    summary?.direction === 'improving' ? 'text-stable'   :
+    'text-amber'
+
+  return (
+    <div className={clsx('panel border rounded-lg overflow-hidden', borderColor, 'bg-bg-secondary/40')}>
+
+      {/* Panel header */}
+      <div
+        className="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
+        onClick={() => !loading && setExpanded(v => !v)}
+      >
+        <div className="flex items-center gap-2">
+          <Sparkles size={13} className={clsx('shrink-0', loading ? 'text-text-dim animate-pulse' : headerAccent)} />
+          <span className="font-mono text-xs font-medium text-text-primary">AI Drift Analysis</span>
+          {summary?.from_cache && (
+            <span className="font-mono text-xs text-text-dim px-1.5 py-0.5 rounded bg-border/30">cached</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Regenerate button — only shown once loaded */}
+          {summary && !loading && (
+            <button
+              onClick={e => { e.stopPropagation(); load(true) }}
+              className="btn-ghost p-1 rounded flex items-center gap-1 text-text-dim hover:text-text-secondary"
+              title="Regenerate narrative"
+            >
+              <RefreshCw size={11} />
+              <span className="font-mono text-xs">Regenerate</span>
+            </button>
+          )}
+          {!loading && (
+            expanded
+              ? <ChevronUp size={13} className="text-text-dim" />
+              : <ChevronDown size={13} className="text-text-dim" />
+          )}
+        </div>
+      </div>
+
+      {/* Panel body */}
+      {expanded && (
+        <div className="px-4 pb-4 space-y-4 border-t border-border/30">
+
+          {/* Loading skeleton */}
+          {loading && (
+            <div className="pt-3">
+              <NarrativeSkeleton />
+            </div>
+          )}
+
+          {/* Error state */}
+          {error && !loading && (
+            <div className="pt-3 flex items-start gap-2">
+              <AlertTriangle size={12} className="text-critical mt-0.5 shrink-0" />
+              <div>
+                <p className="font-mono text-xs text-critical">Could not generate narrative</p>
+                <p className="font-mono text-xs text-text-dim mt-0.5">{error}</p>
+                <button
+                  onClick={() => load(false)}
+                  className="font-mono text-xs text-amber hover:text-amber/80 mt-2 underline underline-offset-2"
+                >
+                  Try again
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Narrative content */}
+          {sections && !loading && (
+            <div className="pt-3 space-y-4">
+
+              {/* Drift Summary */}
+              {sections.driftSummary && (
+                <div>
+                  <p className="font-mono text-xs text-text-dim uppercase tracking-wider mb-2">Drift Summary</p>
+                  <NarrativeBlock text={sections.driftSummary} />
+                </div>
+              )}
+
+              {/* Root Cause Analysis */}
+              {sections.rootCause && (
+                <div>
+                  <p className="font-mono text-xs text-text-dim uppercase tracking-wider mb-2">Root Cause Analysis</p>
+                  <NarrativeBlock text={sections.rootCause} />
+                </div>
+              )}
+
+              {/* Recommended Actions */}
+              {sections.actions && (
+                <div>
+                  <p className="font-mono text-xs text-text-dim uppercase tracking-wider mb-2">Recommended Actions</p>
+                  <NarrativeBlock text={sections.actions} />
+                </div>
+              )}
+
+              {/* Footer — model + timestamp */}
+              <div className="flex items-center justify-between pt-2 border-t border-border/30">
+                <span className="font-mono text-xs text-text-dim">
+                  {summary.model_provider === 'anthropic' ? 'Claude' : 'GPT-4o'}
+                </span>
+                <span className="font-mono text-xs text-text-dim">
+                  {summary.generated_at ? new Date(summary.generated_at).toLocaleDateString() : ''}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -115,6 +329,15 @@ export default function DriftDrawer({ projectId, idA, idB, labelA, labelB, onClo
 
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+
+          {/* ── AI Drift Summary panel ─────────────────────────────────────── */}
+          {/* Mounts immediately; internally waits for driftReady before calling the API */}
+          <AISummaryPanel
+            projectId={projectId}
+            idA={idA}
+            idB={idB}
+            driftReady={!loading && !!drift}
+          />
 
           {loading && (
             <div className="flex items-center gap-2 text-text-dim font-mono text-sm py-8">
