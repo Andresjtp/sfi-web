@@ -76,6 +76,21 @@ export async function fetchFullAnalysis(projectId, analysisId) {
   return request(`/projects/${projectId}/analyses/${analysisId}`)
 }
 
+export async function fetchDriftSummary(projectId, idA, idB, regenerate = false) {
+  const params = new URLSearchParams({ id_a: idA, id_b: idB });
+  if (regenerate) params.set("regenerate", "true");
+ 
+  const res = await apiFetch(
+    `/projects/${projectId}/analyses/drift-summary?${params.toString()}`,
+    { method: "POST" }
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Drift summary failed (${res.status})`);
+  }
+  return res.json();
+}
+
 // ─── Narrative ───────────────────────────────────────────────────────────────
 
 /**
