@@ -70,6 +70,15 @@ function NarrativeSkeleton() {
 function parseNarrativeSections(text) {
   if (!text) return { driftSummary: '', rootCause: '', actions: '' }
 
+  // Strip any line that is purely a markdown/bold section header that leaked
+  // into the content — e.g. "*DRIFT SUMMARY**", "**ROOT CAUSE ANALYSIS**"
+  const stripLeakedHeaders = (content) =>
+    content
+      .split('\n')
+      .filter(line => !/^\*{1,2}(DRIFT SUMMARY|ROOT CAUSE|RECOMMENDED)[^*]*\*{0,2}$/i.test(line.trim()))
+      .join('\n')
+      .trim()
+
   const section = (label) => {
     // Match numbered headers like "1. DRIFT SUMMARY" or "## DRIFT SUMMARY"
     const re = new RegExp(
@@ -77,7 +86,7 @@ function parseNarrativeSections(text) {
       'i'
     )
     const m = text.match(re)
-    return m ? m[1].trim() : ''
+    return m ? stripLeakedHeaders(m[1]) : ''
   }
 
   const driftSummary = section('DRIFT SUMMARY')
