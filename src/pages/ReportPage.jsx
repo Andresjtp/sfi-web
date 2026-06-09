@@ -258,6 +258,7 @@ export default function ReportPage() {
   if (!result) return null
 
   const { sfi_score, project_duration, task_count: total_tasks, metrics, near_critical_tasks: topTasks = [], recovery_recommendations: recoveryRecs = [], progress, status_date } = result
+  const safeRecs = Array.isArray(recoveryRecs) ? recoveryRecs : []
   const analysisId    = result.id
   const criticalCount = result.critical_path_length ?? 0
 
@@ -327,8 +328,8 @@ export default function ReportPage() {
       <MetricsGrid metrics={metrics} />
 
       {/* Recovery recommendations — actionable next step */}
-      {recoveryRecs.length > 0 && (
-        <RecoveryPanel recommendations={recoveryRecs} />
+      {safeRecs.length > 0 && (
+        <RecoveryPanel recommendations={safeRecs} />
       )}
 
       {/* AI Narrative — sits between metrics and float chart */}
