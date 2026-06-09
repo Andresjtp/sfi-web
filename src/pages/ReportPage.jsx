@@ -1,11 +1,96 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Download, Sparkles, RefreshCw, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Download, Sparkles, RefreshCw, AlertCircle, Zap, TrendingDown, Users } from 'lucide-react'
 import SFIGauge from '../components/dashboard/SFIGauge.jsx'
 import MetricsGrid from '../components/dashboard/MetricsGrid.jsx'
 import FloatChart from '../components/dashboard/FloatChart.jsx'
 import ProgressPanel from '../components/dashboard/ProgressPanel.jsx'
-import { fetchNarrative } from '../lib/api.js'
+import { fetchNarrative, fetchRecovery } from '../lib/api.js'
+
+// ── Recovery Panel component ──────────────────────────────────────────────────
+function RecoveryPanel({ recommendations = [] }) {
+  if (!recommendations || recommendations.length === 0) return null
+
+  const top = recommendations[0]
+  const rest = recommendations.slice(1)
+
+  return (
+    <div className="space-y-3">
+      <p className="label-mono">Schedule Recovery</p>
+
+      {/* Primary action card */}
+      <div className="panel p-5 border-amber/25 bg-amber/5">
+        <div className="flex items-start gap-4">
+          <div className="w-9 h-9 rounded-full bg-amber/15 flex items-center justify-center shrink-0 mt-0.5">
+            <Zap size={15} className="text-amber" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <p className="font-mono text-xs text-amber uppercase tracking-wider">Priority Action</p>
+              {top.project_days_saved > 0 && (
+                <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-stable/15 text-stable">
+                  -{top.project_days_saved}d project duration
+                </span>
+              )}
+            </div>
+            <p className="font-mono text-sm font-medium text-text-primary mb-3 truncate">
+              {top.task_name}
+            </p>
+            <p className="font-body text-sm text-text-secondary leading-relaxed mb-4">
+              Completing this task <span className="text-amber font-medium">{top.simulate_days_early} days early</span> would
+              recover <span className="text-stable font-medium">{top.float_days_recovered} float-days</span> across{" "}
+              <span className="text-text-primary font-medium">{top.affected_task_count} downstream tasks</span>,
+              reducing cascade risk in this part of the schedule.
+            </p>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1.5">
+                <TrendingDown size={11} className="text-stable" />
+                <span className="font-mono text-xs text-text-dim">
+                  Current float: <span className="text-text-secondary">{top.current_float}d</span>
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Users size={11} className="text-text-dim" />
+                <span className="font-mono text-xs text-text-dim">
+                  Task ID: <span className="text-text-secondary">{top.task_id}</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Secondary recommendations */}
+      {rest.length > 0 && (
+        <div className="panel divide-y divide-border/40">
+          <div className="grid grid-cols-12 gap-2 px-4 py-2">
+            <span className="col-span-5 font-mono text-xs text-text-dim">Task</span>
+            <span className="col-span-2 font-mono text-xs text-text-dim text-right">Float</span>
+            <span className="col-span-2 font-mono text-xs text-text-dim text-right">Recovered</span>
+            <span className="col-span-3 font-mono text-xs text-text-dim text-right">Affects</span>
+          </div>
+          {rest.map((rec, i) => (
+            <div key={rec.task_id ?? i} className="grid grid-cols-12 gap-2 px-4 py-3 items-center">
+              <div className="col-span-5 min-w-0">
+                <p className="font-mono text-xs text-text-primary truncate">{rec.task_name}</p>
+                <p className="font-mono text-xs text-text-dim">{rec.task_id}</p>
+              </div>
+              <span className="col-span-2 font-mono text-xs text-text-dim text-right tabular-nums">
+                {rec.current_float}d
+              </span>
+              <span className="col-span-2 font-mono text-xs text-stable text-right tabular-nums">
+                +{rec.float_days_recovered}d
+              </span>
+              <span className="col-span-3 font-mono text-xs text-text-dim text-right tabular-nums">
+                {rec.affected_task_count} tasks
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ── Narrative section parser ──────────────────────────────────────────────────
 // The LLM returns a plain-text report with three labeled sections.
@@ -172,7 +257,7 @@ export default function ReportPage() {
 
   if (!result) return null
 
-  const { sfi_score, project_duration, task_count: total_tasks, metrics, near_critical_tasks: topTasks = [], progress, status_date } = result
+  const { sfi_score, project_duration, task_count: total_tasks, metrics, near_critical_tasks: topTasks = [], recovery_recommendations: recoveryRecs = [], progress, status_date } = result
   const analysisId    = result.id
   const criticalCount = result.critical_path_length ?? 0
 
@@ -240,6 +325,11 @@ export default function ReportPage() {
       )}
 
       <MetricsGrid metrics={metrics} />
+
+      {/* Recovery recommendations — actionable next step */}
+      {recoveryRecs.length > 0 && (
+        <RecoveryPanel recommendations={recoveryRecs} />
+      )}
 
       {/* AI Narrative — sits between metrics and float chart */}
       {projectId && analysisId && (
