@@ -85,6 +85,10 @@ export async function fetchDriftSummary(projectId, idA, idB, regenerate = false)
   );
 }
 
+export async function fetchRecovery(projectId, analysisId) {
+  return request(`/projects/${projectId}/analyses/${analysisId}/recovery`)
+}
+
 // ─── Narrative ───────────────────────────────────────────────────────────────
 
 /**
