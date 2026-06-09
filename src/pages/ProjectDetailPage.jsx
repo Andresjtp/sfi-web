@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Upload, Clock, Activity, GitCompare } from 'lucide-react'
+import { ArrowLeft, Upload, Clock, Activity, GitCompare, Calendar } from 'lucide-react'
 import clsx from 'clsx'
 import UploadPage from './UploadPage.jsx'
 import ProjectHistoryTab from './ProjectHistoryTab.jsx'
 import TrendTab from './TrendTab.jsx'
+import LookaheadTab from './LookaheadTab.jsx'
 import DriftDrawer from './DriftDrawer.jsx'
 import { fetchProject } from '../lib/api.js'
 
@@ -12,6 +13,7 @@ const TABS = [
   { id: 'analyze', label: 'Analyze', icon: Upload },
   { id: 'history', label: 'History', icon: Clock },
   { id: 'trend',    label: 'Trend',    icon: Activity },
+  { id: 'lookahead', label: 'Lookahead', icon: Calendar },
 ]
 
 export default function ProjectDetailPage() {
@@ -93,6 +95,9 @@ export default function ProjectDetailPage() {
       )}
       {activeTab === 'trend' && (
         <TrendTab projectId={projectId} />
+      )}
+      {activeTab === 'lookahead' && (
+        <LookaheadTab projectId={projectId} />
       )}
       {/* Drift drawer — rendered at page level so it overlays everything */}
       {driftIds && (

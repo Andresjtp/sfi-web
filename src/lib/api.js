@@ -93,6 +93,12 @@ export async function fetchTaskExplain(projectId, analysisId, taskId) {
   )
 }
 
+export async function fetchLookahead(projectId, analysisId, statusDate, windowDays = 30) {
+  return request(
+    `/projects/${projectId}/analyses/${analysisId}/lookahead?status_date=${statusDate}&window_days=${windowDays}`
+  )
+}
+
 export async function fetchDriftSummary(projectId, idA, idB, regenerate = false) {
   const params = new URLSearchParams({ id_a: idA, id_b: idB });
   if (regenerate) params.set("regenerate", "true");
