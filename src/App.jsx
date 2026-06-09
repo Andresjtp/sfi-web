@@ -7,6 +7,7 @@ import ProjectDetailPage from './pages/ProjectDetailPage.jsx'
 import UploadPage from './pages/UploadPage.jsx'
 import ReportPage from './pages/ReportPage.jsx'
 import HistoryPage from './pages/HistoryPage.jsx'
+import SchedulePage from './pages/SchedulePage.jsx'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -38,6 +39,7 @@ function AppRoutes() {
         <Route path="/projects/:projectId/report" element={<ReportPage />} />
         <Route path="/report" element={<ReportPage />} />
         <Route path="/history" element={<HistoryPage />} />
+        <Route path="/projects/:projectId/analyses/:analysisId/schedule" element={<SchedulePage />} />
       </Route>
       <Route path="*" element={<Navigate to="/projects" replace />} />
     </Routes>

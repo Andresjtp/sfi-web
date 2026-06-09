@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Clock, TrendingDown, TrendingUp, Minus,
-  RefreshCw, ChevronRight, GitCompare, X,
+  RefreshCw, ChevronRight, GitCompare, X, CalendarDays,
 } from 'lucide-react'
 import { fetchProjectHistory, fetchFullAnalysis } from '../lib/api.js'
 import { sfiRiskBand } from '../lib/utils.js'
@@ -268,7 +268,16 @@ export default function ProjectHistoryTab({ projectId, onCompare }) {
                 <span className="col-span-1 flex items-center">
                   <TrendIcon current={snap.sfi_score} previous={prev?.sfi_score} />
                 </span>
-                <span className="col-span-1 flex items-center justify-end">
+                <span className="col-span-1 flex items-center justify-end gap-2">
+                  {!compareMode && (
+                    <button
+                      onClick={e => { e.stopPropagation(); navigate(`/projects/${projectId}/analyses/${snap.id}/schedule`) }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-panel/60"
+                      title="View full schedule"
+                    >
+                      <CalendarDays size={13} className="text-text-dim hover:text-amber transition-colors" />
+                    </button>
+                  )}
                   {compareMode
                     ? null
                     : <ChevronRight size={14} className="text-text-dim group-hover:text-text-secondary transition-colors" />
